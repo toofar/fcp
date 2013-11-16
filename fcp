@@ -1,0 +1,208 @@
+#!/bin/sh
+
+# TODO:
+# * If pv isn't available fall back to cat (or nothing) instead of dying.
+# * There are a coulpe of calls to eval in which any redirect characters
+#   (angle brackets) could lose our output. They need to be escaped.
+# * Not sure about the handling of paths ending in slash or not is proper. 
+#   I assume if it has no slash it is intended to be the destination name
+#   (unless it is an existing directory on the dest host).
+# * If the receiving (connecting) nc is started before the sending (server)
+#   one it will wait for one second and try again. They are started in the
+#   right order but if there are delays in starting the interpreter or
+#   something that sleep may have to be changed to something more robust.
+# * If you want something more sophisticated look at http://www.slac.stanford.edu/~abh/bbcp/
+
+portno=4365
+comp=""
+
+usage() {
+  cat <<EOM
+Usage: $0 [-c] [-p portno] [srchost:]srcpath [dsthost:]dstpath
+
+Copy files between hosts on a network. Uses tar and netcat (nc) for
+transferring data and ssh for setting up the transport.
+
+Options:
+  -c         Tell tar to use gzip compression.
+  -p portno  Port used by netcat. Defaults to $portno.
+EOM
+}
+
+a1="$1"
+# Do a seperated gotopt run so we cat get the return code.
+getopt -Q -o hcp: -l help -- "${@}" >/dev/null || {
+  ret=$?
+  usage
+  exit $ret
+}
+eval "set -- $(getopt -o hcp: -l help -- "${@}")"
+
+# Sometimes set and/or getopt leave a -- there when it shouldn't be
+[ "$a1" != "--" ] && [ "$1" = "--" ] && shift
+
+while [ -n "$1" ];do
+  case "$1" in
+    -h|--help)
+      usage
+      exit
+      ;;
+    -c) comp="-z" ;;
+    -p)
+      portno="$2"
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "Unrecognized argument: $1"
+      usage
+      exit 1
+      ;;
+    *) break ;;
+  esac
+  shift
+done
+
+while [ -n "$1" ];do
+  case "$1" in
+    *)
+      if [ -z "$srcpath" ];then
+        srcpath="$1"
+      elif [ -z "$dstpath" ];then
+        dstpath="$1"
+      else
+        echo "Too many positional arguments (expected 2)." >&2
+        usage
+        exit 1
+      fi
+      ;;
+  esac
+  shift
+done
+
+if [ -z "$srcpath" ];then
+  usage
+  exit 1
+fi
+[ "$srcpath" = "." ] && srcpath="./"
+[ "$srcpath" = ".." ] && srcpath="../"
+[ "$dstpath" = "." ] && dstpath="./"
+[ "$dstpath" = ".." ] && dstpath="../"
+[ -z "$dstpath" ] && dstpath="./"
+
+case "$srcpath" in
+  *\\:*) continue ;;
+  *:*)
+    srchost="${srcpath%%:*}"
+    srcpath="${srcpath#*:}"
+    ;;
+esac
+case "$dstpath" in
+  *\\:*) continue ;;
+  *:*)
+    dsthost="${dstpath%%:*}"
+    dstpath="${dstpath#*:}"
+    ;;
+esac
+
+sendcmd() {
+  dsthost="${1#*@}"
+  srcpath="$2"
+  srcdir="$(dirname "$srcpath")"
+  srcbase="$(basename "$srcpath")"
+  dstpath="$3"
+  [ "${dstpath%/}" = "$dstpath" ] && dstbase="$(basename "$dstpath")"
+  cat <<EOS
+#!/bin/sh
+srcdir="\$(eval echo ${srcdir})"
+if ! [ -d \$srcdir/$srcbase ] && [ -n "$dstbase" ];then
+  trans="--transform=s/${srcbase}\$/$dstbase/"
+else
+  # dummy argument so there isn't an empty "" passed to tar
+  trans=--check-device
+fi
+# Try nc twice, with a one second timeout. In case we get called before the
+# remote end has started up. My need to come up with something more
+# sophisticated in situations where we have to wait longer for the initial
+# setup.
+cd "\$srcdir" && tar -c ${comp} "\$trans" "$srcbase" |
+        pv | ( nc -q 0 -w 3 "${dsthost#*@}" $portno 2>/dev/null ||
+            { sleep 1 && nc -q 0 -w 3 "${dsthost#*@}" $portno ; } )
+EOS
+}
+
+recvcmd() {
+  dstpath="$1"
+  srcbase="$(basename "$2")"
+  cat <<EOS
+#!/bin/sh
+dstpath="\$(eval echo ${dstpath})"
+dstbase="\$(basename \${dstpath})"
+if [ -d "\$dstpath" ] || [ "\${dstpath%/}" != "\$dstpath" ];then
+  dstdir="\$dstpath"
+  # dummy argument so there isn't an empty "" passed to tar
+  trans=--check-device
+else
+  # Strip trailing component and rename the incoming root object to that.
+  # I hope that is what was intended. If not make sure dstpath is
+  # terminated with a slash (/).
+  dstdir="\$(dirname "\$dstpath")"
+  trans="--transform=s/^\([\.\/]*\)${srcbase}/\\1\$dstbase/"
+fi
+mkdir -p "\$dstdir"
+cd "\$dstdir" && nc -lp $portno -w 20 | pv | tar -x ${comp} "\$trans"
+EOS
+}
+
+rpc() {
+  ssh "$1" "export ff=/tmp/fcp_$$_\$\$_cmd ; cat > \$ff && sh \$ff </dev/null ; rm -f \$ff"
+}
+
+myip() {
+  # dig and nslookup and hosts aren't on all machines and don't look in
+  # /etc/hosts. Getent isn't everywhere and sometimes returns ipv6 addreses on
+  # non-ipv5 enabled hosts. getent ahostsv4 I don't know how prevalent that is.
+  tip="$(ping -c1 -W0 ${1#*@} 2>&1 | tr -d '():' | awk '/^PING/{print $3}')"
+  [ -n "$tip" ] &&
+    ip route get "$tip" | sed -n 's/.*src \([^ ]\)/\1/p'
+}
+
+if [ -n "$dsthost" ] && [ -n "$srchost" ];then
+  recvcmd "$dstpath" "$srcpath" | rpc "$dsthost" &
+  sendcmd "$dsthost" "$srcpath" "$dstpath" | rpc "$srchost"
+  exit $?
+elif [ -n "$dsthost" ];then
+  recvcmd "$dstpath" "$srcpath" | rpc "$dsthost" &
+  sendcmd "$dsthost" "$srcpath" "$dstpath" > /tmp/fcp_$$_cmd
+  sh /tmp/fcp_$$_cmd
+  rm /tmp/fcp_$$_cmd
+  exit $?
+elif [ -n "$srchost" ];then
+  dsthost="$(myip "$srchost")"
+  [ -z "$dsthost" ] && {
+    echo "Couldn't find route to $srchost" >&2
+    exit 1
+  }
+  recvcmd "$dstpath" "$srcpath" > /tmp/fcp_$$_cmd
+  sh /tmp/fcp_$$_cmd &
+  sendcmd "$dsthost" "$srcpath" "$dstpath" | rpc "$srchost"
+  rm /tmp/fcp_$$_cmd
+  exit $?
+else
+  srcdir="$(dirname "$srcpath")"
+  srcbase="$(basename "$srcpath")"
+  if [ -d "$dstpath" ] || [ "${dstpath%/}" != "$dstpath" ];then
+    dstdir="$dstpath"
+  else
+    dstdir="$(dirname "$dstpath")"
+  fi
+  # TODO: Handle file renames.
+  dstpath="`eval echo ${dstpath}`"
+  mkdir -p "$dstpath"
+  tar -C "$srcdir" -c "$srcbase" | tar -C "$dstdir" -x
+  exit $?
+fi
+
