@@ -158,7 +158,7 @@ EOS
 }
 
 rpc() {
-  ssh "$1" "export ff=/tmp/fcp_$$_\$\$_cmd ; cat > \$ff && sh \$ff </dev/null ; rm -f \$ff"
+  ssh "$1" "export ff=/tmp/fcp_$$_\$\$_cmd ; cat > \$ff && chmod +x \$ff ; nohup sh -c \"\$ff && rm -f \$ff\" </dev/null >/dev/null 2>&1 &"
 }
 
 myip() {
@@ -171,11 +171,11 @@ myip() {
 }
 
 if [ -n "$dsthost" ] && [ -n "$srchost" ];then
-  recvcmd "$dstpath" "$srcpath" | rpc "$dsthost" &
+  recvcmd "$dstpath" "$srcpath" | rpc "$dsthost"
   sendcmd "$dsthost" "$srcpath" "$dstpath" | rpc "$srchost"
   exit $?
 elif [ -n "$dsthost" ];then
-  recvcmd "$dstpath" "$srcpath" | rpc "$dsthost" &
+  recvcmd "$dstpath" "$srcpath" | rpc "$dsthost"
   sendcmd "$dsthost" "$srcpath" "$dstpath" > /tmp/fcp_$$_cmd
   sh /tmp/fcp_$$_cmd
   rm /tmp/fcp_$$_cmd
