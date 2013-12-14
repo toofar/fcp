@@ -118,7 +118,7 @@ sendcmd() {
   cat <<EOS
 #!/bin/sh
 srcdir="\$(eval echo ${srcdir})"
-if ! [ -d \$srcdir/$srcbase ] && [ -n "$dstbase" ];then
+if ! [ -d "\$srcdir/$srcbase" ] && [ -n "$dstbase" ];then
   trans="--transform=s/${srcbase}\$/$dstbase/"
 else
   # dummy argument so there isn't an empty "" passed to tar
