@@ -152,13 +152,16 @@ else
   dstdir="\$(dirname "\$dstpath")"
   trans="--transform=s/^\([\.\/]*\)${srcbase}/\\1\$dstbase/"
 fi
+tar --help 2>/dev/null | grep -q check-device || trans=-v
+pv=pv
+type pv >/dev/null 2>&1 || pv=cat
 mkdir -p "\$dstdir"
-cd "\$dstdir" && nc -lp $portno -w 20 | pv | tar -x ${comp} "\$trans"
+cd "\$dstdir" && nc -lp $portno -w 20 | \$pv | tar -x ${comp} "\$trans"
 EOS
 }
 
 rpc() {
-  ssh "$1" "export ff=/tmp/fcp_$$_\$\$_cmd ; cat > \$ff && chmod +x \$ff ; nohup sh -c \"\$ff && rm -f \$ff\" </dev/null >/dev/null 2>&1 &"
+  ssh "$1" "export ff=/tmp/fcp_$$_\$\$_cmd ; cat > \$ff ; nohup sh -c \"sh \$ff > /tmp/log 2>&1 && rm -f \$ff\" </dev/null >/dev/null 2>&1 &"
 }
 
 myip() {
