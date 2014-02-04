@@ -124,23 +124,27 @@ else
   # dummy argument so there isn't an empty "" passed to tar
   trans=--check-device
 fi
+tar --help 2>/dev/null | grep -q check-device || trans=v
+pv=pv
+type pv >/dev/null 2>&1 || pv=cat
 # Try nc twice, with a one second timeout. In case we get called before the
 # remote end has started up. My need to come up with something more
 # sophisticated in situations where we have to wait longer for the initial
 # setup.
 cd "\$srcdir" && tar -c ${comp} "\$trans" "$srcbase" |
-        pv | ( nc -q 0 -w 3 "${dsthost#*@}" $portno 2>/dev/null ||
+        \$pv | ( nc -q 0 -w 3 "${dsthost#*@}" $portno 2>/dev/null ||
             { sleep 1 && nc -q 0 -w 3 "${dsthost#*@}" $portno ; } )
 EOS
 }
 
+#TODO: Allow writing to stdout instead of untarring. Maybe if distdir is '-'?
 recvcmd() {
   dstpath="$1"
   srcbase="$(basename "$2")"
   cat <<EOS
 #!/bin/sh
 dstpath="\$(eval echo ${dstpath})"
-dstbase="\$(basename \${dstpath})"
+dstbase="\$(basename "\${dstpath}")"
 if [ -d "\$dstpath" ] || [ "\${dstpath%/}" != "\$dstpath" ];then
   dstdir="\$dstpath"
   # dummy argument so there isn't an empty "" passed to tar
