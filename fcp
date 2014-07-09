@@ -171,10 +171,10 @@ rpc() {
 myip() {
   # dig and nslookup and hosts aren't on all machines and don't look in
   # /etc/hosts. Getent isn't everywhere and sometimes returns ipv6 addreses on
-  # non-ipv5 enabled hosts. getent ahostsv4 I don't know how prevalent that is.
+  # non-ipv6 enabled hosts. getent ahostsv4 I don't know how prevalent that is.
   tip="$(ping -c1 -W0 ${1#*@} 2>&1 | tr -d '():' | awk '/^PING/{print $3}')"
   [ -n "$tip" ] &&
-    ip route get "$tip" | sed -n 's/.*src \([^ ]\)/\1/p'
+    ip route get "$tip" | sed -n 's/^.*src \([^ ]*\).*$/\1/p'
 }
 
 if [ -n "$dsthost" ] && [ -n "$srchost" ];then
