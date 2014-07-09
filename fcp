@@ -165,7 +165,7 @@ EOS
 }
 
 rpc() {
-  ssh "$1" "export ff=/tmp/fcp_$$_\$\$_cmd ; cat > \$ff ; nohup sh -c \"sh \$ff > /tmp/log 2>&1 && rm -f \$ff\" </dev/null >/dev/null 2>&1 &"
+  ssh "$1" "export ff=/tmp/fcp_$$_\$\$_cmd ; cat > \$ff ; nohup sh -c \"sh \$ff && rm -f \$ff\" </dev/null >/dev/null 2>&1 &"
 }
 
 myip() {
