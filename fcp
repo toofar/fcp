@@ -1,9 +1,17 @@
 #!/bin/sh
 
 # TODO:
+# * Look into ssh-hp :).
+# * bring back stderr, currently there is no notification of errors, not even
+#   ENODIR or device full.
+# * fcp src1 src2 src3 ... dst/ doesn't work (but glob does).
+# * Doesn't work when the remote end is android. Although if I ssh over and run
+#   the fcp_ script manually it does work!?! (Maybe something about android
+#   tar, saw something else (what?) making a fifo instead of pipe.)
 # * There are a couple of calls to eval in which any redirect characters
 #   (angle brackets) could lose our output. They need to be escaped.
 # * Not sure about the handling of paths ending in slash or not is proper. 
+#   (Eg where we rename the dest file.)
 #   I assume if it has no slash it is intended to be the destination name
 #   (unless it is an existing directory on the dest host).
 # * If the receiving (connecting) nc is started before the sending (server)
@@ -17,10 +25,13 @@ comp=""
 
 usage() {
   cat <<EOM
-Usage: $0 [-c] [-p portno] [srchost:]srcpath [dsthost:]dstpath
+Usage: $(basename $0) [-c] [-p portno] [--] [srchost:]srcpath [[dsthost:]dstpath]
 
 Copy files between hosts on a network. Uses tar and netcat (nc) for
 transferring data and ssh for setting up the transport.
+
+\`dstpath\` defaults to the current directory, use "-" to get a tarball on
+stdout.
 
 Options:
   -c         Tell tar to use gzip compression.
