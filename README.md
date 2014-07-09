@@ -13,6 +13,9 @@ Multiple source paths are not currently supported.
 Requires tar, basename, dirname, cat, nc and any dest/source host and
 additionally find on the source host and getopt on the controlling host.
 
+If you have bash-completion installed you should be able to re-use scp's
+completion of remote files etc with `complete -F _scp -o nospace f`.
+
     Usage: fcp [-c] [-p portno] [--] [srchost:]srcpath [[dsthost:]dstpath]
     
     Copy files between hosts on a network. Uses tar and netcat (nc) for
