@@ -1,8 +1,7 @@
 #!/bin/sh
 
 # TODO:
-# * If pv isn't available fall back to cat (or nothing) instead of dying.
-# * There are a coulpe of calls to eval in which any redirect characters
+# * There are a couple of calls to eval in which any redirect characters
 #   (angle brackets) could lose our output. They need to be escaped.
 # * Not sure about the handling of paths ending in slash or not is proper. 
 #   I assume if it has no slash it is intended to be the destination name
@@ -118,8 +117,15 @@ sendcmd() {
   cat <<EOS
 #!/bin/sh
 srcdir="\$(eval echo ${srcdir})"
+cd "\$srcdir" || echo \$?
+# Use find here to expand any globs. Eval doesn't like filenames with parens
+# in them. This can leave us with multiple newline seperated files hence we
+# pass them to tar below via stdin.
+srcbase="\$(find . -maxdepth 1 -name "${srcbase}" -exec basename {} \\;)"
+# Fallback in case the above failed for whatever reason.
+[ -z "\$srcbase" ] && srcbase="${srcbase}"
 if ! [ -d "\$srcdir/\$srcbase" ] && [ -n "$dstbase" ] && [ "$dstbase" != "-" ] ;then
-  trans="--transform=s/${srcbase}\$/$dstbase/"
+  trans="--transform=s/\${srcbase}\$/$dstbase/"
 else
   # dummy argument so there isn't an empty "" passed to tar
   trans=--check-device
@@ -128,10 +134,10 @@ tar --help 2>/dev/null | grep -q check-device || trans=v
 pv=pv
 type pv >/dev/null 2>&1 || pv=cat
 # Try nc twice, with a one second timeout. In case we get called before the
-# remote end has started up. My need to come up with something more
+# remote end has started up. May need to come up with something more
 # sophisticated in situations where we have to wait longer for the initial
 # setup.
-cd "\$srcdir" && tar -c ${comp} "\$trans" "$srcbase" |
+echo "\$srcbase" | tar -cT- ${comp} "\$trans" |
         \$pv | ( nc -q 0 -w 3 "${dsthost#*@}" $portno 2>/dev/null ||
             { sleep 1 && nc -q 0 -w 3 "${dsthost#*@}" $portno ; } )
 EOS
