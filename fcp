@@ -196,6 +196,7 @@ elif [ -n "$srchost" ];then
   recvcmd "$dstpath" "$srcpath" > /tmp/fcp_$$_cmd
   sh /tmp/fcp_$$_cmd &
   sendcmd "$dsthost" "$srcpath" "$dstpath" | rpc "$srchost"
+  wait
   rm /tmp/fcp_$$_cmd
   exit $?
 else
