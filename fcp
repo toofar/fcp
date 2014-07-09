@@ -118,7 +118,7 @@ sendcmd() {
   cat <<EOS
 #!/bin/sh
 srcdir="\$(eval echo ${srcdir})"
-if ! [ -d "\$srcdir/$srcbase" ] && [ -n "$dstbase" ];then
+if ! [ -d "\$srcdir/\$srcbase" ] && [ -n "$dstbase" ] && [ "$dstbase" != "-" ] ;then
   trans="--transform=s/${srcbase}\$/$dstbase/"
 else
   # dummy argument so there isn't an empty "" passed to tar
@@ -137,7 +137,6 @@ cd "\$srcdir" && tar -c ${comp} "\$trans" "$srcbase" |
 EOS
 }
 
-#TODO: Allow writing to stdout instead of untarring. Maybe if distdir is '-'?
 recvcmd() {
   dstpath="$1"
   srcbase="$(basename "$2")"
@@ -145,7 +144,7 @@ recvcmd() {
 #!/bin/sh
 dstpath="\$(eval echo ${dstpath})"
 dstbase="\$(basename "\${dstpath}")"
-if [ -d "\$dstpath" ] || [ "\${dstpath%/}" != "\$dstpath" ];then
+if [ -d "\$dstpath" ] || [ "\${dstpath%/}" != "\$dstpath" ] ;then
   dstdir="\$dstpath"
   # dummy argument so there isn't an empty "" passed to tar
   trans=--check-device
@@ -159,8 +158,17 @@ fi
 tar --help 2>/dev/null | grep -q check-device || trans=-v
 pv=pv
 type pv >/dev/null 2>&1 || pv=cat
-mkdir -p "\$dstdir"
-cd "\$dstdir" && nc -lp $portno -w 20 | \$pv | tar -x ${comp} "\$trans"
+if [ "\$dstbase" != '-' ] ;then
+  mkdir -p "\$dstdir" || exit \$?
+  cd "\$dstdir" || exit \$?
+fi
+nc -lp $portno -w 20 | \$pv | {
+    if [ "\$dstbase" != '-' ] ;then
+      tar -x ${comp} "\$trans"
+    else
+      cat
+    fi
+  }
 EOS
 }
 
