@@ -1,10 +1,14 @@
 #!/bin/sh
 
 # TODO:
-# * Look into ssh-hp :).
+# * Look into ssh-hp :). (ie the slowness from ssh may just be from small
+#    buffers).
 # * bring back stderr, currently there is no notification of errors, not even
 #   ENODIR or device full.
 # * fcp src1 src2 src3 ... dst/ doesn't work (but glob does).
+#   Need to take the last positional arg as dest (and unset it) then use
+#   positional args at sources. Go through each one and make sure they are all
+#   local because we don't support mixed remote and local.
 # * Doesn't work when the remote end is android. Although if I ssh over and run
 #   the fcp_ script manually it does work!?! (Maybe something about android
 #   tar, saw something else (what?) making a fifo instead of pipe.)
@@ -12,7 +16,8 @@
 #   (angle brackets) could lose our output. They need to be escaped.
 # * Not sure about the handling of paths ending in slash or not is proper. 
 #   (Eg where we rename the dest file.)
-#   I assume if it has no slash it is intended to be the destination name
+#   I assume if it has no slash it the directory being sent should be renamed
+#   to the destination name
 #   (unless it is an existing directory on the dest host).
 # * If the receiving (connecting) nc is started before the sending (server)
 #   one it will wait for one second and try again. They are started in the
@@ -85,6 +90,7 @@ while [ -n "$1" ];do
         dstpath="$1"
       else
         echo "Too many positional arguments (expected 2)." >&2
+        echo "Try escaping any globs in the destination path." >&2
         usage
         exit 1
       fi
@@ -191,6 +197,7 @@ EOS
 
 rpc() {
   ssh "$1" "export ff=/tmp/fcp_$$_\$\$_cmd ; cat > \$ff ; nohup sh -c \"sh \$ff && rm -f \$ff\" </dev/null >/dev/null 2>&1 &"
+  [ $? -ne 0 ] && echo "Try escaping any ':' in a path if it is not supposed to be a host seperator." >&2
 }
 
 myip() {

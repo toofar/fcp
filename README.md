@@ -1,4 +1,4 @@
-SSH/SCP are to slow. Use netcat instead.
+SSH/SCP are too slow. Use netcat instead.
 
 Uses ssh to bootstrap a netcat (actually nc) pipe so you don't get limited by
 ssh. On my direct ethernet link at home I get ~70 MB/s compared to ~20 MB/s
@@ -14,7 +14,7 @@ Requires tar, basename, dirname, cat, nc and any dest/source host and
 additionally find on the source host and getopt on the controlling host.
 
 If you have bash-completion installed you should be able to re-use scp's
-completion of remote files etc with `complete -F _scp -o nospace f`.
+completion of remote files etc with `complete -F _scp -o nospace fcp`.
 
     Usage: fcp [-c] [-p portno] [--] [srchost:]srcpath [[dsthost:]dstpath]
     
