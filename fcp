@@ -133,7 +133,7 @@ sendcmd() {
   [ "${dstpath%/}" = "$dstpath" ] && dstbase="$(basename "$dstpath")"
   cat <<EOS
 #!/bin/sh
-srcdir="\$(eval echo ${srcdir})"
+srcdir="\$(eval echo "${srcdir}")"
 cd "\$srcdir" || echo \$?
 # Use find here to expand any globs. Eval doesn't like filenames with parens
 # in them. This can leave us with multiple newline seperated files hence we
